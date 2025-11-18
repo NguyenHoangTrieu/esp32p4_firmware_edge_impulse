@@ -402,25 +402,21 @@ static bool at_set_wifi(const char **argv, const int argc)
 
 bool at_get_snapshot(void)
 {
-    EiSnapshotProperties props;
+    EiSnapshotProperties props = dev->get_snapshot_list();
+    
+    ei_printf("Has snapshot: %d\n", props.has_snapshot ? 1 : 0);
+    ei_printf("Supports stream: %d\n", props.support_stream ? 1 : 0);
+    ei_printf("Color depth: RGB\n");
 
-    props = dev->get_snapshot_list();
-
-    ei_printf("Has snapshot:         %d\n", props.has_snapshot ? 1 : 0);
-    ei_printf("Supports stream:      %d\n", props.support_stream ? 1 : 0);
-    //TODO: what is the correct format?
-    ei_printf("Color depth:          RGB\n");
-    // These are not native resolutions, but will be provided
-    // after image processing (crop/resize) - so camera is not reporting them
-    ei_printf("Resolutions:          [ 64x64, 96x96, ");
+    ei_printf("Resolutions: [");
     for (int i = 0; i < props.resolutions_num; i++) {
         ei_printf("%ux%u", props.resolutions[i].width, props.resolutions[i].height);
-        if (i != props.resolutions_num - 1) {
+        if (i < props.resolutions_num - 1) {
             ei_printf(", ");
         }
     }
-    ei_printf(" ]\n");
-
+    ei_printf("]\n");
+    
     return true;
 }
 

@@ -38,200 +38,61 @@
 /* Include ----------------------------------------------------------------- */
 #include "firmware-sdk/ei_camera_interface.h"
 
-#define CAMERA_MODEL_ESP_EYE
+#include "esp_cam_ctlr.h"
+#include "esp_cam_ctlr_types.h"
+#include "esp_cam_ctlr_csi.h"
 
-/*
- *   Pin definitions for some common ESP-CAM modules
- *
- *   Defaults to ESP-EYE
- *
- */
-#if defined(CAMERA_MODEL_AI_THINKER)
-  //
-  // AI Thinker
-  // https://github.com/SeeedDocument/forum_doc/raw/master/reg/ESP32_CAM_V1.6.pdf
-  //
-  #define PWDN_GPIO_NUM     32
-  #define RESET_GPIO_NUM    -1
-  #define XCLK_GPIO_NUM      0
-  #define SIOD_GPIO_NUM     26
-  #define SIOC_GPIO_NUM     27
-  #define Y9_GPIO_NUM       35
-  #define Y8_GPIO_NUM       34
-  #define Y7_GPIO_NUM       39
-  #define Y6_GPIO_NUM       36
-  #define Y5_GPIO_NUM       21
-  #define Y4_GPIO_NUM       19
-  #define Y3_GPIO_NUM       18
-  #define Y2_GPIO_NUM        5
-  #define VSYNC_GPIO_NUM    25
-  #define HREF_GPIO_NUM     23
-  #define PCLK_GPIO_NUM     22
-  #define LED_PIN           33 // Status led
-  #define LED_ON           LOW // - Pin is inverted.
-  #define LED_OFF         HIGH //
-  #define LAMP_PIN           4 // LED FloodLamp.
+// Define camera model for ESP32-P4 with MIPI CSI
+#define CAMERA_MODEL_ESP32P4_MIPI_CSI
 
-#elif defined(CAMERA_MODEL_ESP_EYE)
-  // ESP-EYE
-  // https://twitter.com/esp32net/status/1085488403460882437
-  //
-  #define PWDN_GPIO_NUM    -1
-  #define RESET_GPIO_NUM   -1
-  #define XCLK_GPIO_NUM     4
-  #define SIOD_GPIO_NUM    18
-  #define SIOC_GPIO_NUM    23
-  #define Y9_GPIO_NUM      36
-  #define Y8_GPIO_NUM      37
-  #define Y7_GPIO_NUM      38
-  #define Y6_GPIO_NUM      39
-  #define Y5_GPIO_NUM      35
-  #define Y4_GPIO_NUM      14
-  #define Y3_GPIO_NUM      13
-  #define Y2_GPIO_NUM      34
-  #define VSYNC_GPIO_NUM    5
-  #define HREF_GPIO_NUM    27
-  #define PCLK_GPIO_NUM    25
+#if defined(CAMERA_MODEL_ESP32P4_MIPI_CSI)
+// ESP32-P4 MIPI CSI Configuration
+// No GPIO pin definitions needed for CSI (uses dedicated MIPI lanes)
+#define CSI_CTLR_ID 0                    // CSI controller ID
+#define CSI_DATA_LANE_NUM 2              // Number of MIPI data lanes (2 or 4)
+#define CSI_LANE_BITRATE_MBPS 1000       // Lane bit rate in Mbps (adjust based on sensor)
+#define CSI_INPUT_COLOR CAM_CTLR_COLOR_RAW8    // Input format from sensor
+#define CSI_OUTPUT_COLOR CAM_CTLR_COLOR_RGB565  // Output format after ISP
+#define CSI_QUEUE_ITEMS 8                // Number of transaction queue items
 
-  #define V_FLIP 1
+// I2C pins for sensor control (SCCB/I2C interface)
+#define SIOD_GPIO_NUM 7                  // I2C SDA
+#define SIOC_GPIO_NUM 8                  // I2C SCL
 
-
-#elif defined(CAMERA_MODEL_M5STACK_PSRAM)
-  //
-  // ESP32 M5STACK
-  //
-  #define PWDN_GPIO_NUM     -1
-  #define RESET_GPIO_NUM    15
-  #define XCLK_GPIO_NUM     27
-  #define SIOD_GPIO_NUM     25
-  #define SIOC_GPIO_NUM     23
-  #define Y9_GPIO_NUM       19
-  #define Y8_GPIO_NUM       36
-  #define Y7_GPIO_NUM       18
-  #define Y6_GPIO_NUM       39
-  #define Y5_GPIO_NUM        5
-  #define Y4_GPIO_NUM       34
-  #define Y3_GPIO_NUM       35
-  #define Y2_GPIO_NUM       32
-  #define VSYNC_GPIO_NUM    22
-  #define HREF_GPIO_NUM     26
-  #define PCLK_GPIO_NUM     21
-  // M5 Stack status/illumination LED details unknown/unclear
-  // #define LED_PIN            x // Status led
-  // #define LED_ON          HIGH //
-  // #define LED_OFF          LOW //
-  // #define LAMP_PIN          x  // LED FloodLamp.
-
-#elif defined(CAMERA_MODEL_M5STACK_V2_PSRAM)
-  //
-  // ESP32 M5STACK V2
-  //
-  #define PWDN_GPIO_NUM     -1
-  #define RESET_GPIO_NUM    15
-  #define XCLK_GPIO_NUM     27
-  #define SIOD_GPIO_NUM     22
-  #define SIOC_GPIO_NUM     23
-  #define Y9_GPIO_NUM       19
-  #define Y8_GPIO_NUM       36
-  #define Y7_GPIO_NUM       18
-  #define Y6_GPIO_NUM       39
-  #define Y5_GPIO_NUM        5
-  #define Y4_GPIO_NUM       34
-  #define Y3_GPIO_NUM       35
-  #define Y2_GPIO_NUM       32
-  #define VSYNC_GPIO_NUM    25
-  #define HREF_GPIO_NUM     26
-  #define PCLK_GPIO_NUM     21
-  // M5 Stack status/illumination LED details unknown/unclear
-  // #define LED_PIN            x // Status led
-  // #define LED_ON          HIGH //
-  // #define LED_OFF          LOW //
-  // #define LAMP_PIN          x  // LED FloodLamp.
-
-#elif defined(CAMERA_MODEL_M5STACK_WIDE)
-  //
-  // ESP32 M5STACK WIDE
-  //
-  #define PWDN_GPIO_NUM     -1
-  #define RESET_GPIO_NUM    15
-  #define XCLK_GPIO_NUM     27
-  #define SIOD_GPIO_NUM     22
-  #define SIOC_GPIO_NUM     23
-  #define Y9_GPIO_NUM       19
-  #define Y8_GPIO_NUM       36
-  #define Y7_GPIO_NUM       18
-  #define Y6_GPIO_NUM       39
-  #define Y5_GPIO_NUM        5
-  #define Y4_GPIO_NUM       34
-  #define Y3_GPIO_NUM       35
-  #define Y2_GPIO_NUM       32
-  #define VSYNC_GPIO_NUM    25
-  #define HREF_GPIO_NUM     26
-  #define PCLK_GPIO_NUM     21
-  // M5 Stack status/illumination LED details unknown/unclear
-  // #define LED_PIN            x // Status led
-  // #define LED_ON          HIGH //
-  // #define LED_OFF          LOW //
-  // #define LAMP_PIN          x  // LED FloodLamp.
-
-#elif defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-  //
-  // Common M5 Stack without PSRAM
-  //
-  #define PWDN_GPIO_NUM     -1
-  #define RESET_GPIO_NUM    15
-  #define XCLK_GPIO_NUM     27
-  #define SIOD_GPIO_NUM     25
-  #define SIOC_GPIO_NUM     23
-  #define Y9_GPIO_NUM       19
-  #define Y8_GPIO_NUM       36
-  #define Y7_GPIO_NUM       18
-  #define Y6_GPIO_NUM       39
-  #define Y5_GPIO_NUM        5
-  #define Y4_GPIO_NUM       34
-  #define Y3_GPIO_NUM       35
-  #define Y2_GPIO_NUM       17
-  #define VSYNC_GPIO_NUM    22
-  #define HREF_GPIO_NUM     26
-  #define PCLK_GPIO_NUM     21
-  // Note NO PSRAM,; so maximum working resolution is XGA 1024×768
-  // M5 Stack status/illumination LED details unknown/unclear
-  // #define LED_PIN            x // Status led
-  // #define LED_ON          HIGH //
-  // #define LED_OFF          LOW //
-  // #define LAMP_PIN          x  // LED FloodLamp.
+// Optional: LED pins if available
+#define LED_PIN -1                       // Status LED (if available)
+#define LAMP_PIN -1                      // Flash lamp (if available)
 
 #else
-  // Well.
-  // that went badly...
-  #error "Camera model not selected, did you forget to uncomment it in myconfig?"
-
+#error "Camera model not selected or unsupported for ESP32-P4"
 #endif
 
-class EiCameraESP32 : public EiCamera {
+class EiCameraESP32P4 : public EiCamera {
 private:
-
     static ei_device_snapshot_resolutions_t resolutions[];
-
     uint32_t width;
     uint32_t height;
     uint32_t output_width;
     uint32_t output_height;
-
     bool camera_present;
+    
+    // CSI specific members
+    esp_cam_ctlr_handle_t cam_handle;
+    uint8_t *frame_buffer;
+    size_t frame_buffer_size;
 
 public:
-    EiCameraESP32();
+    EiCameraESP32P4();
     bool init(uint16_t width, uint16_t height);
     bool deinit();
     bool ei_camera_capture_jpeg(uint8_t **image, uint32_t *image_size);
     bool ei_camera_capture_rgb888_packed_big_endian(uint8_t *image, uint32_t image_size);
-    bool ei_camera_jpeg_to_rgb888(uint8_t *jpeg_image, uint32_t jpeg_image_size,
-                                  uint8_t *rgb88_image);
+    bool ei_camera_jpeg_to_rgb888(uint8_t *jpeg_image, uint32_t jpeg_image_size, 
+                                   uint8_t *rgb88_image);
     bool set_resolution(const ei_device_snapshot_resolutions_t res);
     ei_device_snapshot_resolutions_t get_min_resolution(void);
     bool is_camera_present(void);
     void get_resolutions(ei_device_snapshot_resolutions_t **res, uint8_t *res_num);
 };
 
-#endif
+#endif /* EI_CAMERA */

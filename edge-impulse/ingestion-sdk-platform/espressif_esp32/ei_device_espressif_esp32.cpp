@@ -78,7 +78,7 @@ EiDeviceESP32::EiDeviceESP32(EiDeviceMemory* mem)
 
     device_type = "ESPRESSIF_ESP32";
 
-    cam = static_cast<EiCameraESP32*>(EiCameraESP32::get_camera());
+    cam = static_cast<EiCameraESP32P4*>(EiCamera::get_camera());
     camera_present = cam->is_camera_present();
 
     // TODO
@@ -273,14 +273,14 @@ void EiDeviceESP32::set_default_data_output_baudrate(void)
 {
     fflush(stdout);
     ei_sleep(10);
-    esp_err_t ret = uart_set_baudrate(0, DEFAULT_BAUD);
+    esp_err_t ret = uart_set_baudrate(static_cast<uart_port_t>(0), DEFAULT_BAUD);
 }
 
 void EiDeviceESP32::set_max_data_output_baudrate(void)
 {
     fflush(stdout);
     ei_sleep(10);
-    esp_err_t ret = uart_set_baudrate(0, MAX_BAUD);
+    esp_err_t ret = uart_set_baudrate(static_cast<uart_port_t>(0), MAX_BAUD);
 }
 
 /**

@@ -1,4 +1,0 @@
-description: ESP32 compatible driver for LIS3DHTR accelerometer module.
-targets:
-  - esp32
-  - esp32s3

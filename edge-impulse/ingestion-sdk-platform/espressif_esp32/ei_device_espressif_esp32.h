@@ -78,7 +78,7 @@ private:
     ei_device_snapshot_resolutions_t snapshot_resolutions[EI_DEVICE_N_RESOLUTIONS];
 
     bool camera_present;
-    EiCameraESP32 *cam;
+    EiCameraESP32P4 *cam;
 
     bool network_present;
     bool network_connected;

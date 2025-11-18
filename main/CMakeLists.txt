@@ -7,6 +7,7 @@ set(FIRMWARE_SDK_FOLDER ../firmware-sdk)
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
 add_definitions(-DEI_CLASSIFIER_TFLITE_ENABLE_ESP_NN=1) # enables ESP-NN optimizations by Espressif
+add_definitions(-DEI_CLASSIFIER_TFLITE_ENABLE_ESP_NN_P4=1)
 add_definitions(-DEIDSP_USE_ESP_DSP=1) # enables ESP-DSP optimizations by Espressif
 endif()
 
@@ -83,6 +84,19 @@ list(APPEND SOURCE_FILES ${S_FILES_ESP_NN})
 list(APPEND SOURCE_FILES ${S_FILES_ESP_DSP})
 
 idf_component_register(SRCS "main.cpp" "${SOURCE_FILES}"
-                       INCLUDE_DIRS "${include_dirs}")
+                        "../edge-impulse-sdk/porting/espressif/ESP-NN/src/convolution/esp_nn_conv_esp32p4.c"
+                       INCLUDE_DIRS "${include_dirs}"
+                       REQUIRES esp_mm 
+                       esp_driver_gpio 
+                       esp_timer 
+                       esp_partition 
+                       spi_flash 
+                       nvs_flash 
+                       esp_driver_isp 
+                       esp_driver_cam 
+                       esp_driver_i2c
+                       esp_driver_i2s
+                       esp_driver_uart
+                       esp_adc)
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++17)

@@ -34,7 +34,7 @@
 
 #ifndef _EI_CLASSIFIER_CONFIG_H_
 #define _EI_CLASSIFIER_CONFIG_H_
-
+#include "sdkconfig.h"
 // clang-format off
 
 // This is a file that's only used in benchmarking to override HW optimized kernels

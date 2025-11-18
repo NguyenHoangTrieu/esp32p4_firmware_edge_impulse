@@ -33,6 +33,8 @@
  */
 
 /* Include ----------------------------------------------------------------- */
+#include "model-parameters/model_metadata.h"
+#if defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_ACCELEROMETER
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -81,3 +83,13 @@ float *ei_fusion_inertial_read_data(int n_samples)
     
     return imu_data;
 }
+#else 
+// fake function to avoid linker errors when EI_CLASSIFIER_SENSOR is not set to accelerometer
+bool ei_inertial_init(void) {
+    return false;
+}
+float *ei_fusion_inertial_read_data(int n_samples)
+{
+    return nullptr;
+}
+#endif /* defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_ACCELEROMETER */

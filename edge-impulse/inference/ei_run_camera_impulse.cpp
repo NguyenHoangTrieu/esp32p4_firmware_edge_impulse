@@ -117,7 +117,7 @@ void ei_run_impulse(void)
     uint8_t *jpeg_image;
     uint32_t jpeg_image_size = 0;
 
-    EiCameraESP32 *camera = static_cast<EiCameraESP32*>(EiCameraESP32::get_camera());
+    EiCameraESP32P4 *camera = static_cast<EiCameraESP32P4*>(EiCamera::get_camera());
 
     ei_printf("Taking photo...\n");
 
@@ -209,7 +209,7 @@ void ei_start_impulse(bool continuous, bool debug, bool use_max_uart_speed)
     continuous_mode = continuous;
 
     EiDeviceESP32* dev = static_cast<EiDeviceESP32*>(EiDeviceESP32::get_device());
-    EiCameraESP32 *camera = static_cast<EiCameraESP32*>(EiCameraESP32::get_camera());
+    EiCameraESP32P4 *camera = static_cast<EiCameraESP32P4*>(EiCamera::get_camera());
 
     // check if minimum suitable sensor resolution is the same as
     // desired snapshot resolution
