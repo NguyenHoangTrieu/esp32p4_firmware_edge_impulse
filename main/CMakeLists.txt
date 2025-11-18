@@ -97,6 +97,7 @@ idf_component_register(SRCS "main.cpp" "${SOURCE_FILES}"
                        esp_driver_i2c
                        esp_driver_i2s
                        esp_driver_uart
+                       esp_driver_jpeg
                        esp_adc)
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++17)
