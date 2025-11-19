@@ -1318,24 +1318,16 @@ CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_ESPTOOLPY_FLASHFREQ_VAL=80
 # default:
 CONFIG_ESPTOOLPY_FLASHFREQ="80m"
-# default:
 # CONFIG_ESPTOOLPY_FLASHSIZE_1MB is not set
-# default:
-CONFIG_ESPTOOLPY_FLASHSIZE_2MB=y
-# default:
+# CONFIG_ESPTOOLPY_FLASHSIZE_2MB is not set
 # CONFIG_ESPTOOLPY_FLASHSIZE_4MB is not set
-# default:
 # CONFIG_ESPTOOLPY_FLASHSIZE_8MB is not set
-# default:
-# CONFIG_ESPTOOLPY_FLASHSIZE_16MB is not set
-# default:
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 # CONFIG_ESPTOOLPY_FLASHSIZE_32MB is not set
-# default:
 # CONFIG_ESPTOOLPY_FLASHSIZE_64MB is not set
-# default:
 # CONFIG_ESPTOOLPY_FLASHSIZE_128MB is not set
 # default:
-CONFIG_ESPTOOLPY_FLASHSIZE="2MB"
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
 # default:
 # CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE is not set
 # default:
@@ -1376,6 +1368,29 @@ CONFIG_PARTITION_TABLE_OFFSET=0x8000
 # default:
 CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
+
+#
+# Example DSI Configuration
+#
+# default:
+CONFIG_EXAMPLE_LCD_PATTERN_EK79007=y
+# default:
+# CONFIG_EXAMPLE_LCD_PATTERN_ILI9881C is not set
+# default:
+# CONFIG_EXAMPLE_MIPI_DSI_DISP_HRES_800 is not set
+# default:
+CONFIG_EXAMPLE_MIPI_DSI_DISP_HRES_1024=y
+# default:
+CONFIG_EXAMPLE_MIPI_DSI_DISP_HRES=1024
+# default:
+CONFIG_EXAMPLE_MIPI_DSI_DISP_VRES_600=y
+# default:
+# CONFIG_EXAMPLE_MIPI_DSI_DISP_VRES_1280 is not set
+# default:
+CONFIG_EXAMPLE_MIPI_DSI_DISP_VRES=600
+# default:
+# CONFIG_EXAMPLE_MIPI_DSI_DISP_USE_DMA2D is not set
+# end of Example DSI Configuration
 
 #
 # Compiler options
@@ -2057,6 +2072,8 @@ CONFIG_ESP32P4_UNIVERSAL_MAC_ADDRESSES=1
 # default:
 CONFIG_ESP_SLEEP_FLASH_LEAKAGE_WORKAROUND=y
 # default:
+CONFIG_ESP_SLEEP_PSRAM_LEAKAGE_WORKAROUND=y
+# default:
 # CONFIG_ESP_SLEEP_MSPI_NEED_ALL_IO_PU is not set
 # default:
 # CONFIG_ESP_SLEEP_GPIO_RESET_WORKAROUND is not set
@@ -2320,8 +2337,46 @@ CONFIG_PM_SLP_IRAM_OPT=y
 #
 # ESP PSRAM
 #
+CONFIG_SPIRAM=y
+
+#
+# PSRAM config
+#
 # default:
-# CONFIG_SPIRAM is not set
+CONFIG_SPIRAM_MODE_HEX=y
+CONFIG_SPIRAM_SPEED_80M=y
+# CONFIG_SPIRAM_SPEED_20M is not set
+# default:
+CONFIG_SPIRAM_SPEED=80
+# default:
+# CONFIG_SPIRAM_XIP_FROM_PSRAM is not set
+# default:
+# CONFIG_SPIRAM_ECC_ENABLE is not set
+# default:
+CONFIG_SPIRAM_BOOT_HW_INIT=y
+# default:
+CONFIG_SPIRAM_BOOT_INIT=y
+# default:
+CONFIG_SPIRAM_PRE_CONFIGURE_MEMORY_PROTECTION=y
+# default:
+# CONFIG_SPIRAM_IGNORE_NOTFOUND is not set
+# default:
+# CONFIG_SPIRAM_USE_CAPS_ALLOC is not set
+# default:
+CONFIG_SPIRAM_USE_MALLOC=y
+# default:
+CONFIG_SPIRAM_MEMTEST=y
+# default:
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384
+# default:
+# CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP is not set
+# default:
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
+# default:
+# CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY is not set
+# default:
+# CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY is not set
+# end of PSRAM config
 # end of ESP PSRAM
 
 #
@@ -2602,6 +2657,8 @@ CONFIG_FATFS_TIMEOUT_MS=10000
 # default:
 CONFIG_FATFS_PER_FILE_CACHE=y
 # default:
+CONFIG_FATFS_ALLOC_PREFER_EXTRAM=y
+# default:
 # CONFIG_FATFS_USE_FASTSEEK is not set
 # default:
 CONFIG_FATFS_USE_STRFUNC_NONE=y
@@ -2725,6 +2782,8 @@ CONFIG_FREERTOS_SYSTICK_USES_SYSTIMER=y
 #
 # Extra
 #
+# default:
+CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y
 # end of Extra
 
 # default:
@@ -3221,6 +3280,8 @@ CONFIG_MBEDTLS_HAVE_TIME=y
 # default:
 CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC=y
 # default:
+# CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC is not set
+# default:
 # CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set
 # default:
 # CONFIG_MBEDTLS_CUSTOM_MEM_ALLOC is not set
@@ -3636,6 +3697,8 @@ CONFIG_MQTT_TRANSPORT_WEBSOCKET_SECURE=y
 # CONFIG_NVS_ASSERT_ERROR_CHECK is not set
 # default:
 # CONFIG_NVS_LEGACY_DUP_KEYS_COMPATIBILITY is not set
+# default:
+# CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM is not set
 # end of NVS
 
 #
@@ -3913,45 +3976,6 @@ CONFIG_UNITY_ENABLE_IDF_TEST_RUNNER=y
 # end of Unity unit testing library
 
 #
-# USB-OTG
-#
-# default:
-CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256
-# default:
-CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
-# default:
-# CONFIG_USB_HOST_HW_BUFFER_BIAS_IN is not set
-# default:
-# CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT is not set
-
-#
-# Hub Driver Configuration
-#
-
-#
-# Root Port configuration
-#
-# default:
-CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=250
-# default:
-CONFIG_USB_HOST_RESET_HOLD_MS=30
-# default:
-CONFIG_USB_HOST_RESET_RECOVERY_MS=30
-# default:
-CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=10
-# end of Root Port configuration
-
-# default:
-# CONFIG_USB_HOST_HUBS_SUPPORTED is not set
-# end of Hub Driver Configuration
-
-# default:
-# CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set
-# default:
-CONFIG_USB_OTG_SUPPORTED=y
-# end of USB-OTG
-
-#
 # Virtual file system
 #
 # default:
@@ -4056,6 +4080,235 @@ CONFIG_CAMERA_CORE0=y
 # default:
 CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=32768
 # end of Camera configuration
+
+#
+# CMake Utilities
+#
+# default:
+# CONFIG_CU_RELINKER_ENABLE is not set
+# default:
+# CONFIG_CU_DIAGNOSTICS_COLOR_NEVER is not set
+# default:
+CONFIG_CU_DIAGNOSTICS_COLOR_ALWAYS=y
+# default:
+# CONFIG_CU_DIAGNOSTICS_COLOR_AUTO is not set
+# default:
+# CONFIG_CU_GCC_LTO_ENABLE is not set
+# default:
+# CONFIG_CU_GCC_STRING_1BYTE_ALIGN is not set
+# end of CMake Utilities
+
+#
+# Espressif Camera Sensors Configurations
+#
+
+#
+# Camera Sensor Configuration
+#
+
+#
+# Select and Set Camera Sensor
+#
+# default:
+# CONFIG_CAMERA_BF3901 is not set
+# default:
+# CONFIG_CAMERA_BF3925 is not set
+# default:
+# CONFIG_CAMERA_BF3A03 is not set
+# default:
+# CONFIG_CAMERA_GC0308 is not set
+# default:
+# CONFIG_CAMERA_GC2145 is not set
+# default:
+# CONFIG_CAMERA_OS02N10 is not set
+# default:
+# CONFIG_CAMERA_OV2640 is not set
+# default:
+# CONFIG_CAMERA_OV2710 is not set
+# default:
+# CONFIG_CAMERA_OV3660 is not set
+# default:
+# CONFIG_CAMERA_OV5640 is not set
+# default:
+# CONFIG_CAMERA_OV5645 is not set
+# default:
+# CONFIG_CAMERA_OV5647 is not set
+# default:
+# CONFIG_CAMERA_SC030IOT is not set
+# default:
+# CONFIG_CAMERA_SC035HGS is not set
+# default:
+# CONFIG_CAMERA_SC101IOT is not set
+# default:
+# CONFIG_CAMERA_SC202CS is not set
+# default:
+# CONFIG_CAMERA_SC2336 is not set
+# end of Select and Set Camera Sensor
+# end of Camera Sensor Configuration
+
+#
+# Camera XCLK Generator Configuration
+#
+# default:
+# CONFIG_CAMERA_XCLK_USE_LEDC is not set
+# default:
+CONFIG_CAMERA_XCLK_USE_ESP_CLOCK_ROUTER=y
+# end of Camera XCLK Generator Configuration
+
+#
+# Camera Motor Control Configuration
+#
+# default:
+# CONFIG_CAM_MOTOR_DW9714 is not set
+# end of Camera Motor Control Configuration
+
+#
+# Camera SPI Controller Configuration
+#
+# default:
+CONFIG_CAM_CTLR_SPI_ISR_CACHE_SAFE=y
+# default:
+# CONFIG_CAM_CTLR_SPI_DISABLE_BACKUP_BUFFER is not set
+# default:
+# CONFIG_CAM_CTLR_SPI_DISABLE_AUTO_DECODE is not set
+# default:
+CONFIG_CAM_CTLR_SPI_DECODE_TASK_STACK_SIZE=4096
+# default:
+CONFIG_CAM_CTLR_SPI_DECODE_TASK_PRIORITY=10
+# end of Camera SPI Controller Configuration
+# end of Espressif Camera Sensors Configurations
+
+#
+# Espressif Image Process Algorithm Configuration
+#
+# default:
+CONFIG_ESP_IPA_CONFIG_PARAM_VERSION=1
+# default:
+CONFIG_ESP_IPA_IAN_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_ADN_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_AWB_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_ACC_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_AGC_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_AEN_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_AF_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_ATC_ALGORITHM=y
+# default:
+CONFIG_ESP_IPA_EXT_CONFIG=y
+# end of Espressif Image Process Algorithm Configuration
+
+#
+# Espressif SCCB Configurations
+#
+# default:
+CONFIG_ESP_SCCB_TRANS_TIMEOUT_DEFAULT=500
+# end of Espressif SCCB Configurations
+
+#
+# Espressif Video Configuration
+#
+# default:
+CONFIG_ESP_VIDEO_ENABLE_ISP=y
+# default:
+CONFIG_ESP_VIDEO_ENABLE_DATA_PREPROCESSING=y
+# default:
+CONFIG_ESP_VIDEO_CHECK_PARAMETERS=y
+# default:
+CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE=y
+# default:
+CONFIG_ESP_VIDEO_DISABLE_MIPI_CSI_DRIVER_BACKUP_BUFFER=y
+# default:
+CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=y
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_SPI_VIDEO_DEVICE is not set
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE is not set
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE is not set
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_VIDEO_DEVICE is not set
+# default:
+CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE=y
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER is not set
+
+#
+# Video Data Preprocessing
+#
+# default:
+CONFIG_ESP_VIDEO_ENABLE_SWAP_SHORT=y
+# default:
+CONFIG_ESP_VIDEO_ENABLE_SWAP_SHORT_RISCV=y
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_SWAP_SHORT_PIE is not set
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_SWAP_SHORT_BITSCRAMBLER is not set
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_SWAP_SHORT_PERF_LOG is not set
+# default:
+CONFIG_ESP_VIDEO_ENABLE_SWAP_BYTE=y
+# default:
+CONFIG_ESP_VIDEO_ENABLE_SWAP_BYTE_RISCV=y
+# default:
+# CONFIG_ESP_VIDEO_ENABLE_SWAP_BYTE_BITSCRAMBLER is not set
+# end of Video Data Preprocessing
+# end of Espressif Video Configuration
+
+#
+# USB-OTG
+#
+# default:
+CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256
+# default:
+CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
+# default:
+# CONFIG_USB_HOST_HW_BUFFER_BIAS_IN is not set
+# default:
+# CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT is not set
+
+#
+# Hub Driver Configuration
+#
+
+#
+# Root Port configuration
+#
+# default:
+CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=250
+# default:
+CONFIG_USB_HOST_RESET_HOLD_MS=30
+# default:
+CONFIG_USB_HOST_RESET_RECOVERY_MS=30
+# default:
+CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=10
+# end of Root Port configuration
+
+# default:
+# CONFIG_USB_HOST_HUBS_SUPPORTED is not set
+# end of Hub Driver Configuration
+
+# default:
+# CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set
+# default:
+# CONFIG_USB_HOST_DWC_DMA_CAP_MEMORY_IN_PSRAM is not set
+# default:
+CONFIG_USB_OTG_SUPPORTED=y
+# end of USB-OTG
+
+#
+# USB HOST UVC
+#
+# default:
+# CONFIG_UVC_PRINTF_CONFIGURATION_DESCRIPTOR is not set
+# default:
+CONFIG_UVC_INTERVAL_ARRAY_SIZE=3
+# end of USB HOST UVC
 # end of Component config
 
 # default:

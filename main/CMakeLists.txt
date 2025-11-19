@@ -91,13 +91,16 @@ idf_component_register(SRCS "main.cpp" "${SOURCE_FILES}"
                        esp_timer 
                        esp_partition 
                        spi_flash 
-                       nvs_flash 
+                       nvs_flash
                        esp_driver_isp 
                        esp_driver_cam 
                        esp_driver_i2c
                        esp_driver_i2s
                        esp_driver_uart
                        esp_driver_jpeg
+                       esp_sccb_intf
+                       esp_cam_sensor
+                       esp_video
                        esp_adc)
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++17)

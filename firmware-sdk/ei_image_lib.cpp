@@ -91,6 +91,7 @@ static bool ei_camera_take_snapshot_encode_and_output_no_init(size_t width, size
     EiDeviceInfo* dev = EiDeviceInfo::get_device();
     EiSnapshotProperties props = dev->get_snapshot_list();
     int pixel_size_B = (props.color_depth == "RGB") ? RGB888_B_SIZE : MONO_B_SIZE;
+    ei_printf("Snapshot color depth: %s\n", (pixel_size_B == RGB888_B_SIZE) ? "RGB888" : "Grayscale");
 
     // check if minimum suitable sensor resolution is the same as
     // desired snapshot resolution
@@ -198,7 +199,7 @@ extern bool
 ei_camera_take_snapshot_output_on_serial(size_t width, size_t height, bool use_max_baudrate)
 {
     auto camera = EiCamera::get_camera();
-
+    
     // sets camera sensor resolution to the best suitable
     // might not be the same as final snapshot resolution
     // this is why below we pass desired snapshot resolution
@@ -216,8 +217,7 @@ ei_camera_take_snapshot_output_on_serial(size_t width, size_t height, bool use_m
     // if it is different from camera sensor resolution
     // we will resize before sending out the image
     bool isOK = ei_camera_take_snapshot_encode_and_output_no_init(width, height);
-    camera->deinit();
-
+    
     if (use_max_baudrate) {
         change_to_normal_baud();
     }
