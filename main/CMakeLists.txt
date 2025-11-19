@@ -85,6 +85,7 @@ list(APPEND SOURCE_FILES ${S_FILES_ESP_DSP})
 
 idf_component_register(SRCS "main.cpp" "${SOURCE_FILES}"
                         "../edge-impulse-sdk/porting/espressif/ESP-NN/src/convolution/esp_nn_conv_esp32p4.c"
+                        "../edge-impulse/ingestion-sdk-platform/sensors/cam_sensor_init.c"
                        INCLUDE_DIRS "${include_dirs}"
                        REQUIRES esp_mm 
                        esp_driver_gpio 
@@ -97,10 +98,7 @@ idf_component_register(SRCS "main.cpp" "${SOURCE_FILES}"
                        esp_driver_i2c
                        esp_driver_i2s
                        esp_driver_uart
-                       esp_driver_jpeg
-                       esp_sccb_intf
                        esp_cam_sensor
-                       esp_video
                        esp_adc)
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++17)

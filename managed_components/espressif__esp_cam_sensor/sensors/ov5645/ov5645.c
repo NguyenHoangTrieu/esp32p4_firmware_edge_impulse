@@ -262,7 +262,7 @@ static esp_err_t ov5645_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_se
         qdesc->default_value = 0;
         break;
     default: {
-        ESP_LOGD(TAG, "id=%"PRIx32" is not supported", qdesc->id);
+        ESP_LOGE(TAG, "id=%"PRIx32" is not supported", qdesc->id);
         ret = ESP_ERR_INVALID_ARG;
         break;
     }
@@ -327,7 +327,7 @@ static esp_err_t ov5645_set_format(esp_cam_sensor_device_t *dev, const esp_cam_s
     /* Depending on the interface type, an available configuration is automatically loaded.
     You can set the output format of the sensor without using query_format().*/
     if (format == NULL) {
-        format = &ov5645_format_info[CONFIG_CAMERA_OV5645_MIPI_IF_FORMAT_INDEX_DEFAULT];
+        format = &ov5645_format_info[CONFIG_CAMERA_OV5645_MIPI_IF_FORMAT_INDEX_DAFAULT];
     }
 
     ret = ov5645_write_array(dev->sccb_handle, ov5645_mipi_reset_regs);
@@ -505,7 +505,7 @@ esp_cam_sensor_device_t *ov5645_detect(esp_cam_sensor_config_t *config)
     dev->pwdn_pin = config->pwdn_pin;
     dev->sensor_port = config->sensor_port;
     if (config->sensor_port == ESP_CAM_SENSOR_MIPI_CSI) {
-        dev->cur_format = &ov5645_format_info[CONFIG_CAMERA_OV5645_MIPI_IF_FORMAT_INDEX_DEFAULT];
+        dev->cur_format = &ov5645_format_info[CONFIG_CAMERA_OV5645_MIPI_IF_FORMAT_INDEX_DAFAULT];
     } else {
         ESP_LOGE(TAG, "Not support DVP port");
     }

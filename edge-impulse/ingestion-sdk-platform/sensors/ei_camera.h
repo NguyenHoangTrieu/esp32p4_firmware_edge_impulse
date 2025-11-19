@@ -75,12 +75,6 @@ private:
     uint32_t output_width;
     uint32_t output_height;
     bool camera_present;
-    
-    // CSI specific members
-    esp_cam_ctlr_handle_t cam_handle;
-    uint8_t *frame_buffer;
-    size_t frame_buffer_size;
-
 public:
     EiCameraESP32P4();
     bool init(uint16_t width, uint16_t height);

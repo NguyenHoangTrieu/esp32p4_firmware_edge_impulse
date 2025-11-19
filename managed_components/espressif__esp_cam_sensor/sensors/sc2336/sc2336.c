@@ -1,11 +1,10 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <string.h>
-#include <sys/param.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "driver/gpio.h"
@@ -31,7 +30,6 @@ typedef struct {
 
 typedef struct {
     uint32_t exposure_val;
-    uint32_t exposure_max;
     uint32_t gain_index; // current gain index
 
     uint32_t vflip_en : 1;
@@ -47,14 +45,9 @@ struct sc2336_cam {
 #define SC2336_ENABLE_OUT_XCLK(pin,clk)
 #define SC2336_DISABLE_OUT_XCLK(pin)
 
-#define EXPOSURE_V4L2_UNIT_US                   100
-#define EXPOSURE_V4L2_TO_SC2336(v, sf)          \
-    ((uint32_t)(((double)v) * (sf)->fps * (sf)->isp_info->isp_v1_info.vts / (1000000 / EXPOSURE_V4L2_UNIT_US) + 0.5))
-#define EXPOSURE_SC2336_TO_V4L2(v, sf)          \
-    ((int32_t)(((double)v) * 1000000 / (sf)->fps / (sf)->isp_info->isp_v1_info.vts / EXPOSURE_V4L2_UNIT_US + 0.5))
-
+#define SC2336_EXPOSURE_MIN     1
+#define SC2336_EXPOSURE_STEP        1
 #define SC2336_VTS_MAX          0x7fff // Max exposure is VTS-6
-#define SC2336_EXP_MAX_OFFSET   0x06
 
 #define SC2336_FETCH_EXP_H(val)     (((val) >> 12) & 0xF)
 #define SC2336_FETCH_EXP_M(val)     (((val) >> 4) & 0xFF)
@@ -62,10 +55,6 @@ struct sc2336_cam {
 
 #define SC2336_FETCH_DGAIN_COARSE(val)  (((val) >> 8) & 0x03)
 #define SC2336_FETCH_DGAIN_FINE(val)    ((val) & 0xFF)
-
-#define SC2336_GROUP_HOLD_START        0x00
-#define SC2336_GROUP_HOLD_END          0x30
-#define SC2336_GROUP_HOLD_DELAY_FRAMES 0x01
 
 #define SC2336_PID         0xcb3a
 #define SC2336_SENSOR_NAME "SC2336"
@@ -77,7 +66,6 @@ struct sc2336_cam {
 
 static const uint32_t s_limited_gain = CONFIG_CAMERA_SC2336_ABSOLUTE_GAIN_LIMIT;
 static size_t s_limited_gain_index;
-static const uint8_t s_sc2336_exp_min = 0x08;
 static const char *TAG = "sc2336";
 
 #if CONFIG_CAMERA_SC2336_ANA_GAIN_PRIORITY
@@ -952,156 +940,155 @@ static const sc2336_gain_t sc2336_gain_map[] = {
 };
 #endif
 
-#if CONFIG_SOC_MIPI_CSI_SUPPORTED
-static const esp_cam_sensor_isp_info_t sc2336_isp_info_mipi[] = {
+static const esp_cam_sensor_isp_info_t sc2336_isp_info[] = {
     /* For MIPI */
     {
-        .isp_v1_info = { //0
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 81000000,
-            .vts = 1500, // 0x05dc
+            .vts = 1500,
             .hts = 1800,
-            .tline_ns = 22222,
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
-            .exp_def = 0x37e, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
+            .exp_def = 0x5d6, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
     {
-        .isp_v1_info = { //1
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 81000000,
-            .vts = 900, //0x0384
-            .hts = 1800,
-            .tline_ns = 22222,
+            .vts = 1800,
+            .hts = 900,
             .gain_def = 0,
             .exp_def = 0x37e,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         },
     },
     {
-        .isp_v1_info = { //2
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 81000000,
-            .vts = 750, //0x02ee
-            .hts = 1800,
-            .tline_ns = 22222,
+            .vts = 1800,
+            .hts = 750,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x2e8,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         },
     },
     {
-        .isp_v1_info = { //3
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 81000000,
-            .vts = 1200, //0x04b0
-            .hts = 1125,
-            .tline_ns = 33333,
+            .vts = 1125,
+            .hts = 1200,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x4af,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         },
     },
     {
-        .isp_v1_info = { //4
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 66000000,
-            .vts = 1200, //0x04b0
-            .hts = 2250,
-            .tline_ns = 33333,
+            .vts = 2250,
+            .hts = 1200,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x4af,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         },
     },
     {
-        .isp_v1_info = { //5
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 81000000,
-            .vts = 1200, //0x04b0
-            .hts = 2250,
-            .tline_ns = 27777,
+            .vts = 2250,
+            .hts = 1200,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x4aa,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         },
     },
     {
-        .isp_v1_info = { //6
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 49500000,
-            .vts = 1000, //0x03e8
+            .vts = 2200,
             .hts = 750,
-            .tline_ns = 33333,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x3e2,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
     {
-        .isp_v1_info = { //7
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 67200000,
-            .vts = 1250, //0x04e2
+            .vts = 1000,
             .hts = 2240,
-            .tline_ns = 16000,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x207,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
     {
-        .isp_v1_info = { //8
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 84000000,
-            .vts = 1250, //0x04e2
+            .vts = 1250,
             .hts = 2240,
-            .tline_ns = 26666,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x4dc,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
     {
-        .isp_v1_info = { //9
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 84000000,
-            .vts = 1250, //0x04e2
+            .vts = 1250,
             .hts = 2240,
-            .tline_ns = 26666,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x4dc,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
     {
-        .isp_v1_info = { //10
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 84000000,
-            .vts = 1250, //0x04e2
+            .vts = 1250,
             .hts = 2240,
-            .tline_ns = 26666,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x4dc,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
     {
-        .isp_v1_info = { //11
+        .isp_v1_info = {
             .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
             .pclk = 84000000,
-            .vts = 1000, //0x03e8
+            .vts = 1000,
             .hts = 2400,
-            .tline_ns = 33333,
             .gain_def = 0,
-            .exp_def = 0x37e,
+            .exp_def = 0x3e2,
+            .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
+        }
+    },
+    /* For DVP */
+    {
+        .isp_v1_info = {
+            .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
+            .pclk = 42000000,
+            .vts = 525,
+            .hts = 1600,
+            .gain_def = 0,
+            .exp_def = 0x219,
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
 };
 
-static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
+static const esp_cam_sensor_format_t sc2336_format_info[] = {
     /* For MIPI */
     {
         .name = "MIPI_2lane_24Minput_RAW10_1280x720_30fps",
@@ -1113,7 +1100,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_720p_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_720p_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_mipi[0],
+        .isp_info = &sc2336_isp_info[0],
         .mipi_info = {
             .mipi_clk = 405000000,
             .lane_num = 2,
@@ -1131,7 +1118,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_720p_50fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_720p_50fps),
         .fps = 50,
-        .isp_info = &sc2336_isp_info_mipi[1],
+        .isp_info = &sc2336_isp_info[1],
         .mipi_info = {
             .mipi_clk = 405000000,
             .lane_num = 2,
@@ -1149,7 +1136,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_720p_60fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_720p_60fps),
         .fps = 60,
-        .isp_info = &sc2336_isp_info_mipi[2],
+        .isp_info = &sc2336_isp_info[2],
         .mipi_info = {
             .mipi_clk = 405000000,
             .lane_num = 2,
@@ -1167,7 +1154,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_1lane_1080p_25fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_1lane_1080p_25fps),
         .fps = 25,
-        .isp_info = &sc2336_isp_info_mipi[3],
+        .isp_info = &sc2336_isp_info[3],
         .mipi_info = {
             .mipi_clk = 660000000,
             .lane_num = 1,
@@ -1185,7 +1172,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_1080p_25fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_1080p_25fps),
         .fps = 25,
-        .isp_info = &sc2336_isp_info_mipi[4],
+        .isp_info = &sc2336_isp_info[4],
         .mipi_info = {
             .mipi_clk = 330000000,
             .lane_num = 2,
@@ -1203,7 +1190,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_1080p_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_1080p_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_mipi[5],
+        .isp_info = &sc2336_isp_info[5],
         .mipi_info = {
             .mipi_clk = 405000000,
             .lane_num = 2,
@@ -1221,7 +1208,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_10bit_800x800_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_10bit_800x800_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_mipi[6],
+        .isp_info = &sc2336_isp_info[6],
         .mipi_info = {
             .mipi_clk = 336000000,
             .lane_num = 2,
@@ -1239,7 +1226,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_10bit_640x480_50fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_10bit_640x480_50fps),
         .fps = 50,
-        .isp_info = &sc2336_isp_info_mipi[7],
+        .isp_info = &sc2336_isp_info[7],
         .mipi_info = {
             .mipi_clk = 210000000,
             .lane_num = 2,
@@ -1257,7 +1244,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_1080p_raw8_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_1080p_raw8_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_mipi[8],
+        .isp_info = &sc2336_isp_info[8],
         .mipi_info = {
             .mipi_clk = 336000000,
             .lane_num = 2,
@@ -1275,7 +1262,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_720p_raw8_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_720p_raw8_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_mipi[9],
+        .isp_info = &sc2336_isp_info[9],
         .mipi_info = {
             .mipi_clk = 336000000,
             .lane_num = 2,
@@ -1293,7 +1280,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_800x800_raw8_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_800x800_raw8_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_mipi[10],
+        .isp_info = &sc2336_isp_info[10],
         .mipi_info = {
             .mipi_clk = 336000000,
             .lane_num = 2,
@@ -1311,7 +1298,7 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         .regs = init_reglist_MIPI_2lane_1024x600_raw8_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_MIPI_2lane_1024x600_raw8_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_mipi[11],
+        .isp_info = &sc2336_isp_info[11],
         .mipi_info = {
             .mipi_clk = 288000000,
             .lane_num = 2,
@@ -1319,26 +1306,6 @@ static const esp_cam_sensor_format_t sc2336_format_info_mipi[] = {
         },
         .reserved = NULL,
     },
-};
-#endif
-
-#if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
-static const esp_cam_sensor_isp_info_t sc2336_isp_info_dvp[] = {
-    /* For DVP */
-    {
-        .isp_v1_info = {
-            .version = SENSOR_ISP_INFO_VERSION_DEFAULT,
-            .pclk = 42000000,
-            .vts = 525,
-            .hts = 1600,
-            .gain_def = 0,
-            .exp_def = 0x219,
-            .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
-        }
-    },
-};
-
-static const esp_cam_sensor_format_t sc2336_format_info_dvp[] = {
     /* For DVP */
     {
         .name = "DVP_8bit_24Minput_RAW10_1280x720_30fps",
@@ -1350,12 +1317,11 @@ static const esp_cam_sensor_format_t sc2336_format_info_dvp[] = {
         .regs = init_reglist_DVP_720p_30fps,
         .regs_size = ARRAY_SIZE(init_reglist_DVP_720p_30fps),
         .fps = 30,
-        .isp_info = &sc2336_isp_info_dvp[0],
+        .isp_info = &sc2336_isp_info[12],
         .mipi_info = {0},
         .reserved = NULL,
     },
 };
-#endif
 
 static esp_err_t sc2336_read(esp_sccb_io_handle_t sccb_handle, uint16_t reg, uint8_t *read_buf)
 {
@@ -1393,7 +1359,7 @@ static esp_err_t sc2336_set_reg_bits(esp_sccb_io_handle_t sccb_handle, uint16_t 
         return ret;
     }
     uint8_t mask = ((1 << length) - 1) << offset;
-    value = (reg_data & ~mask) | ((value << offset) & mask);
+    value = (ret & ~mask) | ((value << offset) & mask);
     ret = sc2336_write(sccb_handle, reg, value);
     return ret;
 }
@@ -1459,79 +1425,22 @@ static esp_err_t sc2336_set_vflip(esp_cam_sensor_device_t *dev, int enable)
     return sc2336_set_reg_bits(dev->sccb_handle, 0x3221, 5, 2, enable ? 0x03 : 0x00);
 }
 
-static esp_err_t sc2336_set_exp_val(esp_cam_sensor_device_t *dev, uint32_t u32_val)
-{
-    esp_err_t ret;
-    struct sc2336_cam *cam_sc2336 = (struct sc2336_cam *)dev->priv;
-    uint32_t value_buf = MAX(u32_val, s_sc2336_exp_min);
-    value_buf = MIN(value_buf, cam_sc2336->sc2336_para.exposure_max);
-
-    ESP_LOGD(TAG, "set exposure 0x%" PRIx32, value_buf);
-    /* 4 least significant bits of expsoure are fractional part */
-    ret = sc2336_write(dev->sccb_handle,
-                       SC2336_REG_SHUTTER_TIME_H,
-                       SC2336_FETCH_EXP_H(value_buf));
-    ret |= sc2336_write(dev->sccb_handle,
-                        SC2336_REG_SHUTTER_TIME_M,
-                        SC2336_FETCH_EXP_M(value_buf));
-    ret |= sc2336_write(dev->sccb_handle,
-                        SC2336_REG_SHUTTER_TIME_L,
-                        SC2336_FETCH_EXP_L(value_buf));
-    if (ret == ESP_OK) {
-        cam_sc2336->sc2336_para.exposure_val = value_buf;
-    }
-    return ret;
-}
-
-static esp_err_t sc2336_set_total_gain_val(esp_cam_sensor_device_t *dev, uint32_t u32_val)
-{
-    esp_err_t ret;
-    struct sc2336_cam *cam_sc2336 = (struct sc2336_cam *)dev->priv;
-    u32_val = MIN(u32_val, s_limited_gain_index);
-
-    ESP_LOGD(TAG, "dgain_fine %" PRIx8 ", dgain_coarse %" PRIx8 ", again_coarse %" PRIx8, sc2336_gain_map[u32_val].dgain_fine, sc2336_gain_map[u32_val].dgain_coarse, sc2336_gain_map[u32_val].analog_gain);
-    ret = sc2336_write(dev->sccb_handle,
-                       SC2336_REG_DIG_FINE_GAIN,
-                       sc2336_gain_map[u32_val].dgain_fine);
-    ret |= sc2336_write(dev->sccb_handle,
-                        SC2336_REG_DIG_COARSE_GAIN,
-                        sc2336_gain_map[u32_val].dgain_coarse);
-    ret |= sc2336_write(dev->sccb_handle,
-                        SC2336_REG_ANG_GAIN,
-                        sc2336_gain_map[u32_val].analog_gain);
-    if (ret == ESP_OK) {
-        cam_sc2336->sc2336_para.gain_index = u32_val;
-    }
-    return ret;
-}
-
 static esp_err_t sc2336_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_sensor_param_desc_t *qdesc)
 {
     esp_err_t ret = ESP_OK;
     switch (qdesc->id) {
     case ESP_CAM_SENSOR_EXPOSURE_VAL:
         qdesc->type = ESP_CAM_SENSOR_PARAM_TYPE_NUMBER;
-        qdesc->number.minimum = s_sc2336_exp_min;
-        qdesc->number.maximum = dev->cur_format->isp_info->isp_v1_info.vts - SC2336_EXP_MAX_OFFSET; // max = VTS-6 = height+vblank-6, so when update vblank, exposure_max must be updated
+        qdesc->number.minimum = 0xff;
+        qdesc->number.maximum = dev->cur_format->isp_info->isp_v1_info.vts - 6; // max = VTS-6 = height+vblank-6, so when update vblank, exposure_max must be updated
         qdesc->number.step = 1;
         qdesc->default_value = dev->cur_format->isp_info->isp_v1_info.exp_def;
-        break;
-    case ESP_CAM_SENSOR_EXPOSURE_US:
-        qdesc->type = ESP_CAM_SENSOR_PARAM_TYPE_NUMBER;
-        qdesc->number.minimum = EXPOSURE_SC2336_TO_V4L2(s_sc2336_exp_min, dev->cur_format);
-        qdesc->number.maximum = EXPOSURE_SC2336_TO_V4L2((dev->cur_format->isp_info->isp_v1_info.vts - SC2336_EXP_MAX_OFFSET), dev->cur_format); // max = VTS-6 = height+vblank-6, so when update vblank, exposure_max must be updated
-        qdesc->number.step = MAX(EXPOSURE_SC2336_TO_V4L2(0x01, dev->cur_format), 1);
-        qdesc->default_value = EXPOSURE_SC2336_TO_V4L2((dev->cur_format->isp_info->isp_v1_info.exp_def), dev->cur_format);
         break;
     case ESP_CAM_SENSOR_GAIN:
         qdesc->type = ESP_CAM_SENSOR_PARAM_TYPE_ENUMERATION;
         qdesc->enumeration.count = s_limited_gain_index;
         qdesc->enumeration.elements = sc2336_total_gain_val_map;
         qdesc->default_value = dev->cur_format->isp_info->isp_v1_info.gain_def; // gain index
-        break;
-    case ESP_CAM_SENSOR_GROUP_EXP_GAIN:
-        qdesc->type = ESP_CAM_SENSOR_PARAM_TYPE_U8;
-        qdesc->u8.size = sizeof(esp_cam_sensor_gh_exp_gain_t);
         break;
     case ESP_CAM_SENSOR_VFLIP:
     case ESP_CAM_SENSOR_HMIRROR:
@@ -1542,7 +1451,7 @@ static esp_err_t sc2336_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_se
         qdesc->default_value = 0;
         break;
     default: {
-        ESP_LOGD(TAG, "id=%"PRIx32" is not supported", qdesc->id);
+        ESP_LOGE(TAG, "id=%"PRIx32" is not supported", qdesc->id);
         ret = ESP_ERR_INVALID_ARG;
         break;
     }
@@ -1574,37 +1483,41 @@ static esp_err_t sc2336_get_para_value(esp_cam_sensor_device_t *dev, uint32_t id
 static esp_err_t sc2336_set_para_value(esp_cam_sensor_device_t *dev, uint32_t id, const void *arg, size_t size)
 {
     esp_err_t ret = ESP_OK;
+    uint32_t u32_val = *(uint32_t *)arg;
+    struct sc2336_cam *cam_sc2336 = (struct sc2336_cam *)dev->priv;
 
     switch (id) {
     case ESP_CAM_SENSOR_EXPOSURE_VAL: {
-        uint32_t u32_val = *(uint32_t *)arg;
-        ret = sc2336_set_exp_val(dev, u32_val);
-        break;
-    }
-    case ESP_CAM_SENSOR_EXPOSURE_US: {
-        uint32_t u32_val = *(uint32_t *)arg;
-        uint32_t ori_exp = EXPOSURE_V4L2_TO_SC2336(u32_val, dev->cur_format);
-        ret = sc2336_set_exp_val(dev, ori_exp);
+        ESP_LOGD(TAG, "set exposure 0x%" PRIx32, u32_val);
+        /* 4 least significant bits of expsoure are fractional part */
+        ret = sc2336_write(dev->sccb_handle,
+                           SC2336_REG_SHUTTER_TIME_H,
+                           SC2336_FETCH_EXP_H(u32_val));
+        ret |= sc2336_write(dev->sccb_handle,
+                            SC2336_REG_SHUTTER_TIME_M,
+                            SC2336_FETCH_EXP_M(u32_val));
+        ret |= sc2336_write(dev->sccb_handle,
+                            SC2336_REG_SHUTTER_TIME_L,
+                            SC2336_FETCH_EXP_L(u32_val));
+        if (ret == ESP_OK) {
+            cam_sc2336->sc2336_para.exposure_val = u32_val;
+        }
         break;
     }
     case ESP_CAM_SENSOR_GAIN: {
-        uint32_t u32_val = *(uint32_t *)arg;
-        ret = sc2336_set_total_gain_val(dev, u32_val);
-        break;
-    }
-    case ESP_CAM_SENSOR_GROUP_EXP_GAIN: {
-        esp_cam_sensor_gh_exp_gain_t *value = (esp_cam_sensor_gh_exp_gain_t *)arg;
-        uint32_t ori_exp = 0;
-        if (value->exposure_us != 0) {
-            ori_exp = EXPOSURE_V4L2_TO_SC2336(value->exposure_us, dev->cur_format);
-        } else if (value->exposure_val != 0) {
-            ori_exp = value->exposure_val;
-        } else {
-            ret = ESP_ERR_INVALID_ARG;
-            break;
+        ESP_LOGD(TAG, "dgain_fine %" PRIx8 ", dgain_coarse %" PRIx8 ", again_coarse %" PRIx8, sc2336_gain_map[u32_val].dgain_fine, sc2336_gain_map[u32_val].dgain_coarse, sc2336_gain_map[u32_val].analog_gain);
+        ret = sc2336_write(dev->sccb_handle,
+                           SC2336_REG_DIG_FINE_GAIN,
+                           sc2336_gain_map[u32_val].dgain_fine);
+        ret |= sc2336_write(dev->sccb_handle,
+                            SC2336_REG_DIG_COARSE_GAIN,
+                            sc2336_gain_map[u32_val].dgain_coarse);
+        ret |= sc2336_write(dev->sccb_handle,
+                            SC2336_REG_ANG_GAIN,
+                            sc2336_gain_map[u32_val].analog_gain);
+        if (ret == ESP_OK) {
+            cam_sc2336->sc2336_para.gain_index = u32_val;
         }
-        ret = sc2336_set_exp_val(dev, ori_exp);
-        ret |= sc2336_set_total_gain_val(dev, value->gain_index);
         break;
     }
     case ESP_CAM_SENSOR_VFLIP: {
@@ -1631,18 +1544,9 @@ static esp_err_t sc2336_query_support_formats(esp_cam_sensor_device_t *dev, esp_
 {
     ESP_CAM_SENSOR_NULL_POINTER_CHECK(TAG, dev);
     ESP_CAM_SENSOR_NULL_POINTER_CHECK(TAG, formats);
-#if CONFIG_SOC_MIPI_CSI_SUPPORTED
-    if (dev->sensor_port == ESP_CAM_SENSOR_MIPI_CSI) {
-        formats->count = ARRAY_SIZE(sc2336_format_info_mipi);
-        formats->format_array = &sc2336_format_info_mipi[0];
-    }
-#endif
-#if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
-    if (dev->sensor_port == ESP_CAM_SENSOR_DVP) {
-        formats->count = ARRAY_SIZE(sc2336_format_info_dvp);
-        formats->format_array = &sc2336_format_info_dvp[0];
-    }
-#endif
+
+    formats->count = ARRAY_SIZE(sc2336_format_info);
+    formats->format_array = &sc2336_format_info[0];
     return ESP_OK;
 }
 
@@ -1663,16 +1567,11 @@ static esp_err_t sc2336_set_format(esp_cam_sensor_device_t *dev, const esp_cam_s
     /* Depending on the interface type, an available configuration is automatically loaded.
     You can set the output format of the sensor without using query_format().*/
     if (format == NULL) {
-#if CONFIG_SOC_MIPI_CSI_SUPPORTED
-        if (dev->sensor_port == ESP_CAM_SENSOR_MIPI_CSI) {
-            format = &sc2336_format_info_mipi[CONFIG_CAMERA_SC2336_MIPI_IF_FORMAT_INDEX_DEFAULT];
+        if (dev->sensor_port != ESP_CAM_SENSOR_DVP) {
+            format = &sc2336_format_info[CONFIG_CAMERA_SC2336_MIPI_IF_FORMAT_INDEX_DAFAULT];
+        } else {
+            format = &sc2336_format_info[CONFIG_CAMERA_SC2336_DVP_IF_FORMAT_INDEX_DAFAULT];
         }
-#endif
-#if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
-        if (dev->sensor_port == ESP_CAM_SENSOR_DVP) {
-            format = &sc2336_format_info_dvp[CONFIG_CAMERA_SC2336_DVP_IF_FORMAT_INDEX_DEFAULT];
-        }
-#endif
     }
 
     ret = sc2336_write_array(dev->sccb_handle, (sc2336_reginfo_t *)format->regs);
@@ -1686,7 +1585,6 @@ static esp_err_t sc2336_set_format(esp_cam_sensor_device_t *dev, const esp_cam_s
     // init para
     cam_sc2336->sc2336_para.exposure_val = dev->cur_format->isp_info->isp_v1_info.exp_def;
     cam_sc2336->sc2336_para.gain_index = dev->cur_format->isp_info->isp_v1_info.gain_def;
-    cam_sc2336->sc2336_para.exposure_max = dev->cur_format->isp_info->isp_v1_info.vts - SC2336_EXP_MAX_OFFSET;
 
     return ret;
 }
@@ -1871,16 +1769,12 @@ esp_cam_sensor_device_t *sc2336_detect(esp_cam_sensor_config_t *config)
             break;
         }
     }
-#if CONFIG_SOC_MIPI_CSI_SUPPORTED
-    if (config->sensor_port == ESP_CAM_SENSOR_MIPI_CSI) {
-        dev->cur_format = &sc2336_format_info_mipi[CONFIG_CAMERA_SC2336_MIPI_IF_FORMAT_INDEX_DEFAULT];
+    if (config->sensor_port != ESP_CAM_SENSOR_DVP) {
+        dev->cur_format = &sc2336_format_info[CONFIG_CAMERA_SC2336_MIPI_IF_FORMAT_INDEX_DAFAULT];
+    } else {
+        dev->cur_format = &sc2336_format_info[CONFIG_CAMERA_SC2336_DVP_IF_FORMAT_INDEX_DAFAULT];
     }
-#endif
-#if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
-    if (config->sensor_port == ESP_CAM_SENSOR_DVP) {
-        dev->cur_format = &sc2336_format_info_dvp[CONFIG_CAMERA_SC2336_DVP_IF_FORMAT_INDEX_DEFAULT];
-    }
-#endif
+
     // Configure sensor power, clock, and SCCB port
     if (sc2336_power_on(dev) != ESP_OK) {
         ESP_LOGE(TAG, "Camera power on failed");

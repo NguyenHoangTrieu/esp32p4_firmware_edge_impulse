@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -125,7 +125,7 @@ static esp_err_t sc101iot_write_reg_bits_a16v8(esp_sccb_io_handle_t sccb_handle,
         return ret;
     }
     uint8_t mask = ((1 << length) - 1) << offset;
-    value = (reg_data & ~mask) | ((value << offset) & mask);
+    value = (ret & ~mask) | ((value << offset) & mask);
     ret = sc101iot_write_a16v8(sccb_handle, reg, value);
     return ret;
 }
@@ -206,7 +206,7 @@ static esp_err_t sc101iot_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_
         qdesc->default_value = 0;
         break;
     default: {
-        ESP_LOGD(TAG, "id=%"PRIx32" is not supported", qdesc->id);
+        ESP_LOGE(TAG, "id=%"PRIx32" is not supported", qdesc->id);
         ret = ESP_ERR_INVALID_ARG;
         break;
     }
@@ -273,7 +273,7 @@ static esp_err_t sc101iot_set_format(esp_cam_sensor_device_t *dev, const esp_cam
     /* Depending on the interface type, an available configuration is automatically loaded.
     You can set the output format of the sensor without using query_format().*/
     if (format == NULL) {
-        format = &sc101iot_format_info[CONFIG_CAMERA_SC101IOT_DVP_IF_FORMAT_INDEX_DEFAULT];
+        format = &sc101iot_format_info[CONFIG_CAMERA_SC101IOT_DVP_IF_FORMAT_INDEX_DAFAULT];
     }
 
     ret = sc101iot_write_array(dev->sccb_handle, (sc101iot_reginfo_t *)format->regs, format->regs_size);
@@ -349,9 +349,7 @@ static esp_err_t sc101iot_power_on(esp_cam_sensor_device_t *dev)
     esp_err_t ret = ESP_OK;
 
     if (dev->xclk_pin >= 0) {
-        ESP_LOGW(TAG, "In delay");
         SC101IOT_ENABLE_OUT_XCLK(dev->xclk_pin, dev->xclk_freq_hz);
-        delay_ms(5);
     }
 
     if (dev->pwdn_pin >= 0) {
@@ -450,7 +448,7 @@ esp_cam_sensor_device_t *sc101iot_detect(esp_cam_sensor_config_t *config)
     dev->pwdn_pin = config->pwdn_pin;
     dev->sensor_port = config->sensor_port;
     dev->ops = &sc101iot_ops;
-    dev->cur_format = &sc101iot_format_info[CONFIG_CAMERA_SC101IOT_DVP_IF_FORMAT_INDEX_DEFAULT];
+    dev->cur_format = &sc101iot_format_info[CONFIG_CAMERA_SC101IOT_DVP_IF_FORMAT_INDEX_DAFAULT];
 
     // Configure sensor power, clock, and SCCB port
     if (sc101iot_power_on(dev) != ESP_OK) {

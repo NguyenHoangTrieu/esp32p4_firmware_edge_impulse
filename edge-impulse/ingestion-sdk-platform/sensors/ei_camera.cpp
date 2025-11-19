@@ -5,10 +5,8 @@
 #include "firmware-sdk/ei_device_interface.h"
 #include "firmware-sdk/ei_image_lib.h"
 
-extern "C" {
-#include "example_config.h"
-#include "example_sensor_init.h"
-}
+#include "cam_config.h"
+#include "cam_sensor_init.h"
 
 #include "driver/isp.h"
 #include "esp_cache.h"
@@ -23,16 +21,16 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 
+#include "hal/cache_hal.h"
+#include "hal/cache_ll.h"
+
 static const char *TAG = "EI_CAMERA";
 
 static esp_ldo_channel_handle_t ldo_mipi_phy = NULL;
-static example_sensor_handle_t sensor_handle = {
-    .sccb_handle = NULL,
-    .i2c_bus_handle = NULL,
-};
-static esp_cam_ctlr_handle_t cam_handle = NULL;
-static isp_proc_handle_t isp_proc = NULL;
+static esp_cam_ctlr_handle_t s_cam_handle = NULL;
+static isp_proc_handle_t s_isp_proc = NULL;
 static void *s_frame_buffer = NULL;
+static void *s_take_frame_buffer = NULL;
 static size_t s_frame_buffer_size = 0;
 static esp_cam_ctlr_trans_t s_new_trans = {};
 
@@ -43,21 +41,14 @@ ei_device_snapshot_resolutions_t EiCameraESP32P4::resolutions[] = {
 };
 
 EiCameraESP32P4::EiCameraESP32P4()
-    : width(800), height(640), output_width(800), output_height(640),
-      camera_present(false), cam_handle(NULL), frame_buffer(NULL),
-      frame_buffer_size(0) {}
-
-static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle,
-                                esp_cam_ctlr_trans_t *trans, void *user_data) {
-  esp_cam_ctlr_trans_t new_trans = *(esp_cam_ctlr_trans_t *)user_data;
-  trans->buffer = new_trans.buffer;
-  trans->buflen = new_trans.buflen;
-  return false;
-}
+    : width(800), height(800), output_width(800), output_height(800),
+      camera_present(false) {}
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle,
                                         esp_cam_ctlr_trans_t *trans,
                                         void *user_data) {
+  memcpy(s_take_frame_buffer, trans->buffer, trans->buflen);
+  memset(trans->buffer, 0xFF, trans->buflen);
   return false;
 }
 
@@ -83,115 +74,114 @@ bool EiCameraESP32P4::set_resolution(
 }
 
 bool EiCameraESP32P4::init(uint16_t w, uint16_t h) {
-  esp_err_t ret = ESP_FAIL;
 
   width = w;
   height = h;
   output_width = w;
   output_height = h;
 
+  esp_err_t ret = ESP_FAIL;
+  // mipi ldo
   ESP_LOGI(TAG, "Init camera %dx%d", width, height);
-
-  esp_ldo_channel_config_t ldo_cfg = {
+  esp_ldo_channel_config_t ldo_mipi_phy_config = {
       .chan_id = 3,
       .voltage_mv = 2500,
   };
-  ESP_ERROR_CHECK(esp_ldo_acquire_channel(&ldo_cfg, &ldo_mipi_phy));
+  ESP_ERROR_CHECK(esp_ldo_acquire_channel(&ldo_mipi_phy_config, &ldo_mipi_phy));
 
-  s_frame_buffer_size = width * height * 2;
-  s_frame_buffer = (uint8_t *)calloc(1, s_frame_buffer_size);
-  if (!s_frame_buffer) {
-    ESP_LOGE(TAG, "Buffer calloc fail");
+  //--------Camera Sensor and SCCB Init-----------//
+  i2c_master_bus_handle_t i2c_bus_handle = NULL;
+  cam_sensor_init(I2C_NUM_0, &i2c_bus_handle);
+
+  //---------------CSI Init------------------//
+  esp_cam_ctlr_csi_config_t csi_config = {
+      .ctlr_id = 0,
+      .h_res = EI_CLASSIFIER_INPUT_WIDTH,
+      .v_res = EI_CLASSIFIER_INPUT_HEIGHT,
+      .data_lane_num = 2,
+      .lane_bit_rate_mbps = CAM_MIPI_CSI_LANE_BITRATE_MBPS,
+      .input_data_color_type = CAM_CTLR_COLOR_RAW8,
+      .output_data_color_type = CAM_CTLR_COLOR_RGB888,
+      .queue_items = 1,
+      .byte_swap_en = false,
+  };
+  ret = esp_cam_new_csi_ctlr(&csi_config, &s_cam_handle);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "csi init fail[%d]", ret);
     return false;
   }
-  ESP_LOGI(TAG, "frame_buffer_size: %zu", s_frame_buffer_size);
-  ESP_LOGI(TAG, "frame_buffer: %p", s_frame_buffer);
-
+  //---------------Necessary variable config------------------//
+  s_frame_buffer_size = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT *
+                        CAM_RGB888_BITS_PER_PIXEL / 8;
+  s_frame_buffer = esp_cam_ctlr_alloc_buffer(
+      s_cam_handle, s_frame_buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+  ESP_LOGD(TAG,
+           "EI_CLASSIFIER_INPUT_WIDTH: %d, EI_CLASSIFIER_INPUT_HEIGHT: %d, "
+           "bits per pixel: %d",
+           EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT, 8);
+  ESP_LOGD(TAG, "s_frame_buffer_size: %zu", s_frame_buffer_size);
+  ESP_LOGD(TAG, "s_frame_buffer: %p", s_frame_buffer);
+  s_take_frame_buffer = heap_caps_calloc(1, s_frame_buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!s_frame_buffer || !s_take_frame_buffer) {
+    ESP_LOGE(TAG, "frame buffer malloc fail");
+    return false;
+  }
   s_new_trans.buffer = s_frame_buffer;
   s_new_trans.buflen = s_frame_buffer_size;
 
-  ESP_LOGI(TAG, "Buffer allocated: %d bytes", s_frame_buffer_size);
-
-  example_sensor_config_t cam_sensor_config = {
-      .i2c_port_num = I2C_NUM_0,
-      .i2c_sda_io_num = SIOD_GPIO_NUM,
-      .i2c_scl_io_num = SIOC_GPIO_NUM,
-      .port = ESP_CAM_SENSOR_MIPI_CSI,
-      .format_name = "MIPI_2lane_24Minput_RAW8_800x640_50fps",
-  };
-  example_sensor_init(&cam_sensor_config, &sensor_handle);
-
-  esp_cam_ctlr_csi_config_t csi_config = {};
-  csi_config.ctlr_id = 0;
-  csi_config.h_res = width;
-  csi_config.v_res = height;
-  csi_config.lane_bit_rate_mbps = EXAMPLE_MIPI_CSI_LANE_BITRATE_MBPS;
-  csi_config.input_data_color_type = CAM_CTLR_COLOR_RAW8;
-  csi_config.output_data_color_type = CAM_CTLR_COLOR_RAW8;
-  csi_config.data_lane_num = 2;
-  csi_config.byte_swap_en = false;
-  csi_config.queue_items = 1;
-  ret = esp_cam_new_csi_ctlr(&csi_config, &cam_handle);
-  if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "CSI init fail");
-    return false;
-  }
-
   esp_cam_ctlr_evt_cbs_t cbs = {
-      .on_get_new_trans = s_camera_get_new_vb,
+      .on_get_new_trans = NULL,
       .on_trans_finished = s_camera_get_finished_trans,
   };
-  if (esp_cam_ctlr_register_event_callbacks(cam_handle, &cbs, &s_new_trans) !=
+  if (esp_cam_ctlr_register_event_callbacks(s_cam_handle, &cbs, &s_new_trans) !=
       ESP_OK) {
-    ESP_LOGE(TAG, "Callback register fail");
+    ESP_LOGE(TAG, "ops register fail");
     return false;
   }
 
-  ESP_ERROR_CHECK(esp_cam_ctlr_enable(cam_handle));
+  ESP_ERROR_CHECK(esp_cam_ctlr_enable(s_cam_handle));
 
-  // ISP processor init
-  //   esp_isp_processor_cfg_t isp_config = {
-  //       .clk_hz = 80 * 1000 * 1000,
-  //       .input_data_source = ISP_INPUT_DATA_SOURCE_CSI,
-  //       .input_data_color_type = ISP_COLOR_RAW8,
-  //       .output_data_color_type = ISP_COLOR_RAW8,
-  //       .has_line_start_packet = false,
-  //       .has_line_end_packet = false,
-  //       .h_res = width,
-  //       .v_res = height,
-  //   };
-  //   ESP_ERROR_CHECK(esp_isp_new_processor(&isp_config, &isp_proc));
-  //   ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
+  //---------------ISP Init------------------//
+  esp_isp_processor_cfg_t s_isp_config = {
+      .clk_hz = 80 * 1000 * 1000,
+      .input_data_source = ISP_INPUT_DATA_SOURCE_CSI,
+      .input_data_color_type = ISP_COLOR_RAW8,
+      .output_data_color_type = ISP_COLOR_RGB888,
+      .has_line_start_packet = false,
+      .has_line_end_packet = false,
+      .h_res = EI_CLASSIFIER_INPUT_WIDTH,
+      .v_res = EI_CLASSIFIER_INPUT_HEIGHT,
+  };
+  ESP_ERROR_CHECK(esp_isp_new_processor(&s_isp_config, &s_isp_proc));
+  ESP_ERROR_CHECK(esp_isp_enable(s_isp_proc));
+
+  //---------------DPI Reset------------------//
+  // example_dpi_panel_reset(mipi_dpi_panel);
+
+  // init to all white
   memset(s_frame_buffer, 0xFF, s_frame_buffer_size);
   esp_cache_msync((void *)s_frame_buffer, s_frame_buffer_size,
-                  ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+                  ESP_CACHE_MSYNC_FLAG_DIR_C2M);
 
-  if (esp_cam_ctlr_start(cam_handle) != ESP_OK) {
-    ESP_LOGE(TAG, "Start fail");
+  if (esp_cam_ctlr_start(s_cam_handle) != ESP_OK) {
+    ESP_LOGE(TAG, "Driver start fail");
     return false;
   }
-
   camera_present = true;
-  frame_buffer = (uint8_t *)s_frame_buffer;
-  frame_buffer_size = s_frame_buffer_size;
-
   return true;
 }
 
 bool EiCameraESP32P4::deinit() {
   ESP_LOGI(TAG, "Deinit camera");
-  if (cam_handle) {
-    esp_cam_ctlr_stop(cam_handle);
-    esp_cam_ctlr_disable(cam_handle);
-    esp_cam_ctlr_del(cam_handle);
+  if (s_cam_handle) {
+    esp_cam_ctlr_stop(s_cam_handle);
+    esp_cam_ctlr_disable(s_cam_handle);
+    esp_cam_ctlr_del(s_cam_handle);
   }
-  if (isp_proc) {
-    esp_isp_disable(isp_proc);
-    esp_isp_del_processor(isp_proc);
+  if (s_isp_proc) {
+    esp_isp_disable(s_isp_proc);
+    esp_isp_del_processor(s_isp_proc);
   }
-
-  example_sensor_deinit(sensor_handle);
-
   if (ldo_mipi_phy)
     esp_ldo_release_channel(ldo_mipi_phy);
   if (s_frame_buffer)
@@ -203,37 +193,28 @@ bool EiCameraESP32P4::deinit() {
 
 bool EiCameraESP32P4::ei_camera_capture_rgb888_packed_big_endian(
     uint8_t *image, uint32_t image_size) {
+  ESP_LOGI(TAG, "Image size requested: %d", image_size);
   if (!camera_present)
     return false;
 
   uint32_t required = width * height * 3;
   if (image_size < required)
     return false;
-
-  if (esp_cam_ctlr_receive(cam_handle, &s_new_trans, ESP_CAM_CTLR_MAX_DELAY) !=
-      ESP_OK) {
-    return false;
+  esp_err_t ret =
+      esp_cam_ctlr_receive(s_cam_handle, &s_new_trans, pdMS_TO_TICKS(1000));
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "Receive frame fail[%d]", ret);
   }
-
-  for (int i = 0; i < 100; i++) {
-    ESP_LOGI(TAG, "First 100 bytes of frame buffer: %02X", ((uint8_t *)s_frame_buffer)[i]);
+  uint8_t *src = (uint8_t *)s_take_frame_buffer;
+    ESP_LOGI(TAG, "First 10 bytes: ");
+  for (int i = 0; i < 10; i++) {
+    esp_rom_printf( "%02x ", src[i]);
   }
-
-  if (s_new_trans.received_size == 0) {
-    ESP_LOGE(TAG, "Received size is 0");
-    return false;
-  }
-
-  uint16_t *src = (uint16_t *)s_frame_buffer;
+  esp_rom_printf("\r\n");
   for (uint32_t i = 0; i < width * height; i++) {
-    uint16_t pixel = src[i];
-    uint8_t r = (pixel >> 11) & 0x1F;
-    uint8_t g = (pixel >> 5) & 0x3F;
-    uint8_t b = pixel & 0x1F;
-
-    image[i * 3 + 0] = (r << 3) | (r >> 2);
-    image[i * 3 + 1] = (g << 2) | (g >> 4);
-    image[i * 3 + 2] = (b << 3) | (b >> 2);
+    image[i * 3 + 0] = src[i * 3 + 0]; // R
+    image[i * 3 + 1] = src[i * 3 + 1]; // G
+    image[i * 3 + 2] = src[i * 3 + 2]; // B
   }
 
   return true;

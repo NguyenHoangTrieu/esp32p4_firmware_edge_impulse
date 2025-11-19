@@ -154,7 +154,7 @@ static esp_err_t gc0308_set_reg_bits(esp_sccb_io_handle_t sccb_handle, uint8_t r
         return ret;
     }
     uint8_t mask = ((1 << length) - 1) << offset;
-    value = (reg_data & ~mask) | ((value << offset) & mask);
+    value = (ret & ~mask) | ((value << offset) & mask);
     ret = gc0308_write(sccb_handle, reg, value);
     return ret;
 }
@@ -264,7 +264,7 @@ static esp_err_t gc0308_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_se
         qdesc->default_value = 0;
         break;
     default: {
-        ESP_LOGD(TAG, "id=%"PRIx32" is not supported", qdesc->id);
+        ESP_LOGE(TAG, "id=%"PRIx32" is not supported", qdesc->id);
         ret = ESP_ERR_INVALID_ARG;
         break;
     }
@@ -274,20 +274,7 @@ static esp_err_t gc0308_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_se
 
 static esp_err_t gc0308_get_para_value(esp_cam_sensor_device_t *dev, uint32_t id, void *arg, size_t size)
 {
-    esp_err_t ret = ESP_OK;
-
-    switch (id) {
-#if CONFIG_CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER
-    case ESP_CAM_SENSOR_DATA_SEQ:
-        *(uint32_t *)arg = ESP_CAM_SENSOR_DATA_SEQ_BYTE_SWAPPED;
-        break;
-#endif
-    default:
-        ret = ESP_ERR_NOT_SUPPORTED;
-        break;
-    }
-
-    return ret;
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 static esp_err_t gc0308_set_para_value(esp_cam_sensor_device_t *dev, uint32_t id, const void *arg, size_t size)
@@ -345,7 +332,7 @@ static esp_err_t gc0308_set_format(esp_cam_sensor_device_t *dev, const esp_cam_s
     /* Depending on the interface type, an available configuration is automatically loaded.
     You can set the output format of the sensor without using query_format().*/
     if (format == NULL) {
-        format = &gc0308_format_info[CONFIG_CAMERA_GC0308_DVP_IF_FORMAT_INDEX_DEFAULT];
+        format = &gc0308_format_info[CONFIG_CAMERA_GC0308_DVP_IF_FORMAT_INDEX_DAFAULT];
     }
 
     ret = gc0308_write_array(dev->sccb_handle, (gc0308_reginfo_t *)format->regs, format->regs_size);
@@ -520,7 +507,7 @@ esp_cam_sensor_device_t *gc0308_detect(esp_cam_sensor_config_t *config)
     dev->pwdn_pin = config->pwdn_pin;
     dev->sensor_port = config->sensor_port;
     dev->ops = &gc0308_ops;
-    dev->cur_format = &gc0308_format_info[CONFIG_CAMERA_GC0308_DVP_IF_FORMAT_INDEX_DEFAULT];
+    dev->cur_format = &gc0308_format_info[CONFIG_CAMERA_GC0308_DVP_IF_FORMAT_INDEX_DAFAULT];
 
     // Configure sensor power, clock, and SCCB port
     if (gc0308_power_on(dev) != ESP_OK) {

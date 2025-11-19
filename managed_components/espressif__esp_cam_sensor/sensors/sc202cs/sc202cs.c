@@ -874,7 +874,6 @@ static const esp_cam_sensor_isp_info_t sc202cs_isp_info[] = {
             .pclk = 72000000,
             .vts = 1250,
             .hts = 1920,
-            .tline_ns = 26666,
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
@@ -886,7 +885,6 @@ static const esp_cam_sensor_isp_info_t sc202cs_isp_info[] = {
             .pclk = 72000000,
             .vts = 1250,
             .hts = 1920,
-            .tline_ns = 26666,
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
@@ -898,7 +896,6 @@ static const esp_cam_sensor_isp_info_t sc202cs_isp_info[] = {
             .pclk = 72000000,
             .vts = 1250,
             .hts = 1920,
-            .tline_ns = 26666,
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
@@ -910,7 +907,6 @@ static const esp_cam_sensor_isp_info_t sc202cs_isp_info[] = {
             .pclk = 72000000,
             .vts = 1250,
             .hts = 1920,
-            .tline_ns = 26666,
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
@@ -1029,7 +1025,7 @@ static esp_err_t sc202cs_set_reg_bits(esp_sccb_io_handle_t sccb_handle, uint16_t
         return ret;
     }
     uint8_t mask = ((1 << length) - 1) << offset;
-    value = (reg_data & ~mask) | ((value << offset) & mask);
+    value = (ret & ~mask) | ((value << offset) & mask);
     ret = sc202cs_write(sccb_handle, reg, value);
     return ret;
 }
@@ -1101,7 +1097,7 @@ static esp_err_t sc202cs_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_s
     switch (qdesc->id) {
     case ESP_CAM_SENSOR_EXPOSURE_VAL:
         qdesc->type = ESP_CAM_SENSOR_PARAM_TYPE_NUMBER;
-        qdesc->number.minimum = 0x08;
+        qdesc->number.minimum = 0xff;
         qdesc->number.maximum = dev->cur_format->isp_info->isp_v1_info.vts - 6; // max = VTS-6 = height+vblank-6, so when update vblank, exposure_max must be updated
         qdesc->number.step = 1;
         qdesc->default_value = dev->cur_format->isp_info->isp_v1_info.exp_def;
@@ -1121,7 +1117,7 @@ static esp_err_t sc202cs_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_s
         qdesc->default_value = 0;
         break;
     default: {
-        ESP_LOGD(TAG, "id=%"PRIx32" is not supported", qdesc->id);
+        ESP_LOGE(TAG, "id=%"PRIx32" is not supported", qdesc->id);
         ret = ESP_ERR_INVALID_ARG;
         break;
     }
@@ -1237,7 +1233,7 @@ static esp_err_t sc202cs_set_format(esp_cam_sensor_device_t *dev, const esp_cam_
     /* Depending on the interface type, an available configuration is automatically loaded.
     You can set the output format of the sensor without using query_format().*/
     if (format == NULL) {
-        format = &sc202cs_format_info[CONFIG_CAMERA_SC202CS_MIPI_IF_FORMAT_INDEX_DEFAULT];
+        format = &sc202cs_format_info[CONFIG_CAMERA_SC202CS_MIPI_IF_FORMAT_INDEX_DAFAULT];
     }
 
     ret = sc202cs_write_array(dev->sccb_handle, (sc202cs_reginfo_t *)format->regs);
@@ -1429,7 +1425,7 @@ esp_cam_sensor_device_t *sc202cs_detect(esp_cam_sensor_config_t *config)
     dev->sensor_port = config->sensor_port;
     dev->ops = &sc202cs_ops;
     dev->priv = cam_sc202cs;
-    dev->cur_format = &sc202cs_format_info[CONFIG_CAMERA_SC202CS_MIPI_IF_FORMAT_INDEX_DEFAULT];
+    dev->cur_format = &sc202cs_format_info[CONFIG_CAMERA_SC202CS_MIPI_IF_FORMAT_INDEX_DAFAULT];
     for (size_t i = 0; i < ARRAY_SIZE(sc202cs_abs_gain_val_map); i++) {
         if (sc202cs_abs_gain_val_map[i] > s_limited_abs_gain) {
             s_limited_abs_gain_index = i - 1;
