@@ -39,7 +39,7 @@
 #include "firmware-sdk/ei_fusion.h"
 
 /** Number of axis used and sample data format */
-#define INERTIAL_AXIS_SAMPLED       3
+#define INERTIAL_AXIS_SAMPLED 3
 
 /* Function prototypes ----------------------------------------------------- */
 bool ei_inertial_init(void);
