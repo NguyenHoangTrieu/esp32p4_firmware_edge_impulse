@@ -42,6 +42,7 @@
 
 #include "ei_config_types.h"
 #include "ei_microphone.h"
+#include "ei_inertial_sensor.h"
 #include "flash_memory.h"
 
 #include "esp_system.h"
@@ -73,13 +74,15 @@ EiDeviceESP32::EiDeviceESP32(EiDeviceMemory* mem)
     EiDeviceInfo::memory = mem;
 
     init_device_id();
+    ei_inertial_init();
 
     load_config();
 
     device_type = "ESPRESSIF_ESP32";
 
-    cam = static_cast<EiCameraESP32P4*>(EiCamera::get_camera());
-    camera_present = cam->is_camera_present();
+    // Cam is now fucked up
+    // cam = static_cast<EiCameraESP32P4*>(EiCamera::get_camera());
+    // camera_present = cam->is_camera_present();
 
     // TODO
     //net = static_cast<EiWifiESP32*>(EiWifiESP32::get_network_device());
@@ -92,6 +95,12 @@ EiDeviceESP32::EiDeviceESP32(EiDeviceMemory* mem)
     standalone_sensor_list[0].max_sample_length_s = mem->get_available_sample_bytes() / (16000 * 2);
     standalone_sensor_list[0].frequencies[0] = 16000.0f;
     standalone_sensor_list[0].frequencies[1] = 8000.0f;
+
+    standalone_sensor_list[1].name = "Accelerometer";
+    standalone_sensor_list[1].start_sampling_cb = &ei_inertial_sample_start;  // Thay đổi này!
+    standalone_sensor_list[1].max_sample_length_s = mem->get_available_sample_bytes() / (100 * 3 * 4);
+    standalone_sensor_list[1].frequencies[0] = 100.0f;
+    standalone_sensor_list[1].frequencies[1] = 62.5f;
 
 }
 

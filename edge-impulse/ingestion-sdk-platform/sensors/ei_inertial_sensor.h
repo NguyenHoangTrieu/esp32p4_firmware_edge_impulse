@@ -44,6 +44,7 @@
 /* Function prototypes ----------------------------------------------------- */
 bool ei_inertial_init(void);
 float *ei_fusion_inertial_read_data(int n_samples);
+bool ei_inertial_sample_start(sampler_callback callsampler, float sample_interval_ms);
 
 static const ei_device_fusion_sensor_t inertial_sensor = {
     // name of sensor module to be displayed in fusion list

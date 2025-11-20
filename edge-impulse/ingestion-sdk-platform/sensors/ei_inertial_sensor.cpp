@@ -195,3 +195,30 @@ float *ei_fusion_inertial_read_data(int n_samples) {
 
   return imu_data;
 }
+
+/**
+ * @brief Sample callback for standalone accelerometer sampling
+ */
+bool ei_inertial_sample_start(sampler_callback callsampler, float sample_interval_ms)
+{
+    EI_LOGI("Starting accelerometer sampling...\n");
+    
+    // Sample loop
+    while (1) {
+        float *buffer = ei_fusion_inertial_read_data(INERTIAL_AXIS_SAMPLED);
+        
+        // Send data to Edge Impulse via callback
+        callsampler((const void *)buffer, INERTIAL_AXIS_SAMPLED * sizeof(float));
+        
+        // Wait for next sample
+        ei_sleep((int)sample_interval_ms);
+        
+        // Check for stop signal
+        if (ei_user_invoke_stop()) {
+            EI_LOGI("Sampling stopped by user\n");
+            break;
+        }
+    }
+    
+    return true;
+}
