@@ -33,6 +33,7 @@ static void *s_frame_buffer = NULL;
 static void *s_take_frame_buffer = NULL;
 static size_t s_frame_buffer_size = 0;
 static esp_cam_ctlr_trans_t s_new_trans = {};
+static bool s_is_camera_init = false;
 
 ei_device_snapshot_resolutions_t EiCameraESP32P4::resolutions[] = {
     {.width = 800, .height = 640},
@@ -41,8 +42,9 @@ ei_device_snapshot_resolutions_t EiCameraESP32P4::resolutions[] = {
 };
 
 EiCameraESP32P4::EiCameraESP32P4()
-    : width(800), height(800), output_width(800), output_height(800),
-      camera_present(false) {}
+    : width(EI_CLASSIFIER_INPUT_WIDTH), height(EI_CLASSIFIER_INPUT_HEIGHT),
+      output_width(EI_CLASSIFIER_INPUT_WIDTH),
+      output_height(EI_CLASSIFIER_INPUT_HEIGHT), camera_present(true) {}
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle,
                                         esp_cam_ctlr_trans_t *trans,
@@ -74,7 +76,10 @@ bool EiCameraESP32P4::set_resolution(
 }
 
 bool EiCameraESP32P4::init(uint16_t w, uint16_t h) {
-
+  if (s_is_camera_init) {
+    ESP_LOGW(TAG, "Camera already initialized");
+    return true;
+  }
   width = w;
   height = h;
   output_width = w;
@@ -121,7 +126,8 @@ bool EiCameraESP32P4::init(uint16_t w, uint16_t h) {
            EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT, 8);
   ESP_LOGD(TAG, "s_frame_buffer_size: %zu", s_frame_buffer_size);
   ESP_LOGD(TAG, "s_frame_buffer: %p", s_frame_buffer);
-  s_take_frame_buffer = heap_caps_calloc(1, s_frame_buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  s_take_frame_buffer = heap_caps_calloc(1, s_frame_buffer_size,
+                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!s_frame_buffer || !s_take_frame_buffer) {
     ESP_LOGE(TAG, "frame buffer malloc fail");
     return false;
@@ -168,6 +174,7 @@ bool EiCameraESP32P4::init(uint16_t w, uint16_t h) {
     return false;
   }
   camera_present = true;
+  s_is_camera_init = true;
   return true;
 }
 
@@ -194,9 +201,10 @@ bool EiCameraESP32P4::deinit() {
 bool EiCameraESP32P4::ei_camera_capture_rgb888_packed_big_endian(
     uint8_t *image, uint32_t image_size) {
   ESP_LOGI(TAG, "Image size requested: %d", image_size);
-  if (!camera_present)
+  if (!s_is_camera_init) {
+    ESP_LOGE(TAG, "Camera not initialized");
     return false;
-
+  }
   uint32_t required = width * height * 3;
   if (image_size < required)
     return false;
@@ -206,27 +214,18 @@ bool EiCameraESP32P4::ei_camera_capture_rgb888_packed_big_endian(
     ESP_LOGE(TAG, "Receive frame fail[%d]", ret);
   }
   uint8_t *src = (uint8_t *)s_take_frame_buffer;
-    ESP_LOGI(TAG, "First 10 bytes: ");
+  ESP_LOGI(TAG, "First 10 bytes: ");
   for (int i = 0; i < 10; i++) {
-    esp_rom_printf( "%02x ", src[i]);
+    esp_rom_printf("%02x ", src[i]);
   }
   esp_rom_printf("\r\n");
-  for (uint32_t i = 0; i < width * height; i++) {
-    image[i * 3 + 0] = src[i * 3 + 0]; // R
-    image[i * 3 + 1] = src[i * 3 + 1]; // G
-    image[i * 3 + 2] = src[i * 3 + 2]; // B
-  }
-
+  image = (uint8_t *)s_take_frame_buffer;
   return true;
 }
 
 bool EiCameraESP32P4::ei_camera_capture_jpeg(uint8_t **image,
                                              uint32_t *image_size) {
   uint32_t size = width * height * 3;
-  *image = (uint8_t *)heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
-  if (!*image)
-    return false;
-
   if (ei_camera_capture_rgb888_packed_big_endian(*image, size)) {
     *image_size = size;
     return true;
@@ -247,3 +246,6 @@ EiCamera *EiCamera::get_camera() {
   static EiCameraESP32P4 camera;
   return &camera;
 }
+
+// AT+RUNIMPULSE
+// AT+SNAPSHOT=800,1280,n

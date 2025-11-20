@@ -105,6 +105,7 @@ static bool ei_camera_take_snapshot_encode_and_output_no_init(size_t width, size
     }
 
     uint32_t size = width * height * pixel_size_B;
+    ei_printf("Image size: %d\n", size);
 
 #if ALLIGNED_BUFFER
     // 32 BYTE aligned buffer
@@ -130,7 +131,7 @@ static bool ei_camera_take_snapshot_encode_and_output_no_init(size_t width, size
     else {
         camera->get_fb_ptr(&image);
     }
-
+    ei_printf("Using camera framebuffer for image processing\n");
 #endif
 
 #if SEND_TEST_IMAGE
@@ -159,9 +160,11 @@ static bool ei_camera_take_snapshot_encode_and_output_no_init(size_t width, size
     bool isOK = false;
     switch(pixel_size_B) {
         case RGB888_B_SIZE:
+            ei_printf("Capturing RGB888 image...\n");
             isOK = camera->ei_camera_capture_rgb888_packed_big_endian(image, size);
             break;
         case MONO_B_SIZE:
+            ei_printf("Capturing Grayscale image...\n");
             isOK = camera->ei_camera_capture_grayscale_packed_big_endian(image, size);
             break;
         default:
@@ -170,10 +173,12 @@ static bool ei_camera_take_snapshot_encode_and_output_no_init(size_t width, size
     }
 
     if (!isOK) {
+        ei_printf("ERR: Failed to capture image from camera\n");
         return false;
     }
 
     if (needs_a_resize) {
+        ei_printf("Resizing from %dx%d to %dx%d\n", width, height, final_width, final_height);
         // interpolate in place
         ei::image::processing::crop_and_interpolate_image(
             image,
@@ -185,13 +190,14 @@ static bool ei_camera_take_snapshot_encode_and_output_no_init(size_t width, size
             pixel_size_B);
     }
 #endif
-
+    
+    ei_printf("Done\n");
     // recalculate size b/c now we want to send just the interpolated bytes
-    base64_encode(
-        reinterpret_cast<char *>(image),
-        final_height * final_width * pixel_size_B,
-        ei_putchar);
-
+    // Stuck Here
+    // base64_encode(
+    //     reinterpret_cast<char *>(image),
+    //     final_height * final_width * pixel_size_B,
+    //     ei_putchar);
     return true;
 }
 
@@ -211,6 +217,7 @@ ei_camera_take_snapshot_output_on_serial(size_t width, size_t height, bool use_m
 
     if (use_max_baudrate) {
         respond_and_change_to_max_baud();
+        ei_printf("Changed to max baudrate\n");
     }
 
     // here we pass desired snapshot resolution
